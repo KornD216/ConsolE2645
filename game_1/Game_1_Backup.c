@@ -42,10 +42,8 @@ typedef enum {
     STATE_GRID,
     STATE_RADIO
 } FSM_State_t;
-int STATE_COUNT = 2;
 
 // Game state - customize for your game
-volatile FSM_State_t g_current_state = STATE_GRID;
 
 // Frame rate for this game (in milliseconds)
 #define GAME1_FRAME_TIME_MS 30  // ~33 FPS
@@ -70,53 +68,35 @@ MenuState Game1_Run(void) {
         // Read and figure out the movement
         movement(&joystick_data);
 
-        // MAIN FSM LOOP
-        switch (g_current_state) {
-            case STATE_GRID:
-                handle_state_grid(&joystick_data);
-                break;
-
-            case STATE_RADIO:
-                handle_state_radio(&joystick_data);
-                break;
-            
-            default:
-                g_current_state = STATE_GRID;
-                break;
+        /*
+        MOVE THE BUTTON PRESS CHECK INTO GRID FSM!!!!
+        */
+        // Check if button pressed
+        if (current_input.btn2_pressed && !btn2_last) {
+            int pos_id = player_coord - 1;
+            coord_state[pos_id] = !coord_state[pos_id];
         }
+
+        btn2_last = current_input.btn2_pressed;
+        
+        // UPDATE: Game logic
+        
+        // RENDER: Draw to LCD
+        LCD_Fill_Buffer(0);
+        
+        // INSERT CODE FOR DRAWING HERE
+        draw_grid();
+
+        LCD_Refresh(&cfg0);
+        
         // Frame timing - wait for remainder of frame time
         uint32_t frame_time = HAL_GetTick() - frame_start;
         if (frame_time < GAME1_FRAME_TIME_MS) {
             HAL_Delay(GAME1_FRAME_TIME_MS - frame_time);
         }
     }
+    
     return exit_state;  // Tell main where to go next
-}
-
-// Handler for STATE GRID
-void handle_state_grid(Joystick_t* joy){
-    // Clear The Screen
-    LCD_Fill_Buffer(0);
-    // Debouncing Mechanism
-    if (current_input.btn2_pressed && !btn2_last){
-            // Convert coordinate to grid number
-            int pos_id = player_coord - 1;
-            // Toggle the corresponding grid status
-            coord_state[pos_id] = !coord_state[pos_id];
-        }
-    btn2_last = current_input.btn2_pressed;
-    draw_grid();
-    // Add Player Cursors - only visible for this state
-    draw_grid_cursor(player_coord);
-    LCD_Refresh(&cfg0);
-}
-
-// Handler for STATE RADIO
-void handle_state_radio(Joystick_t* joy){
-    // Clear The Screen
-    LCD_Fill_Buffer(0);
-    draw_grid();
-    LCD_Refresh(&cfg0);
 }
 
 // Draw the main 3x3 grid
@@ -141,6 +121,7 @@ void draw_grid() {
         }
     }
     draw_selected_coords();
+    draw_grid_cursor(player_coord);
 }
 
 void draw_grid_cursor(int player_coord) {
@@ -193,11 +174,3 @@ void movement(Joystick_t* joy) {
         if ((player_coord - 1) % 3 != 0) player_coord -= 1;
     }
 }
-
-// ISR Handler for button 3, the main implementation is in InputHandler.C
-void Game1_HandleButton3(){
-      // STATE TRANSITION: Move to next state (wraps back to 0 after last state)
-      // The (FSM_State_t) cast is needed because arithmetic operations (+, %) 
-      // return an integer type, so we must explicitly cast back to enum type
-      g_current_state = (FSM_State_t)((g_current_state + 1) % STATE_COUNT);
-    }

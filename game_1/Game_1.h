@@ -4,6 +4,13 @@
 
 #include "Menu.h"
 
+// State Handler
+void handle_state_grid(Joystick_t* joy);
+void handle_state_radio(Joystick_t* joy);
+
+// ISR Callback Handler
+void Game1_HandleButton3();
+
 // Headers for grid-drawing related elements
 void draw_grid(void);
 void draw_grid_cursor(int player_coord);
