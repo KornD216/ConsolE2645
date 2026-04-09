@@ -20,6 +20,7 @@ extern Joystick_t joystick_data;     // Current joystick readings
  * Replace this with your actual game logic!
  */
 
+ // Upside Down Cursor
  const uint8_t Cursor[10][10] = {
     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
     {255, 0, 0, 0, 0, 0, 0, 0, 0, 255},
@@ -34,15 +35,18 @@ extern Joystick_t joystick_data;     // Current joystick readings
 };
 
 int player_coord = 1;  // starts top-left
+int player_frequency = 250; // (Ranges from 100-500)
+int player_health = 3; // starts with 3 attempts remaining
 int coord_state[9] = {0}; // Clean unpressed grid
 static uint8_t btn2_last = 0; // Initial state for button press (used for debouncing later)
 
  // State definition for enum type, will be used in FSM cases
 typedef enum {
     STATE_GRID,
-    STATE_RADIO
+    STATE_RADIO,
+    STATE_SUBMIT
 } FSM_State_t;
-int STATE_COUNT = 2;
+int STATE_COUNT = 3;
 
 // Game state - customize for your game
 volatile FSM_State_t g_current_state = STATE_GRID;
@@ -67,8 +71,6 @@ MenuState Game1_Run(void) {
         // Read input and then joystick
         Input_Read();
         Joystick_Read(&joystick_cfg, &joystick_data);
-        // Read and figure out the movement
-        movement(&joystick_data);
 
         // MAIN FSM LOOP
         switch (g_current_state) {
@@ -95,6 +97,8 @@ MenuState Game1_Run(void) {
 
 // Handler for STATE GRID
 void handle_state_grid(Joystick_t* joy){
+    // Read and figure out the movement
+    movement(&joystick_data);
     // Clear The Screen
     LCD_Fill_Buffer(0);
     // Debouncing Mechanism
@@ -105,7 +109,9 @@ void handle_state_grid(Joystick_t* joy){
             coord_state[pos_id] = !coord_state[pos_id];
         }
     btn2_last = current_input.btn2_pressed;
+    // Draw Main Elements
     draw_grid();
+    draw_radio();
     // Add Player Cursors - only visible for this state
     draw_grid_cursor(player_coord);
     LCD_Refresh(&cfg0);
@@ -113,10 +119,40 @@ void handle_state_grid(Joystick_t* joy){
 
 // Handler for STATE RADIO
 void handle_state_radio(Joystick_t* joy){
+    tune_freq(&joystick_data);
     // Clear The Screen
     LCD_Fill_Buffer(0);
+    // Draw Main Elements
+    draw_radio();
     draw_grid();
     LCD_Refresh(&cfg0);
+}
+
+// Draw the main radio
+void draw_radio(){
+    // Draw main background and decide whether movement arrow will appear
+    if (g_current_state != STATE_RADIO){ // ORANGE If radio is non-active, no arrows
+        LCD_Draw_Rect(10,10, 220, 90, 5, 1);
+        LCD_printString("KHz", 90, 60, 0, 3);
+    } else { // RED If radio is active, with arrows
+        LCD_Draw_Rect(10, 10, 220, 90, 2, 1);
+        LCD_printString("< KHz >", 54, 60, 0, 3);
+    }
+    // DRAW FREQUENCY
+    char buffer[20];
+    snprintf(buffer, sizeof(buffer), "%d", player_frequency);
+    LCD_printString(buffer, 90, 30, 0, 3);
+}
+
+// Tune the frequency according to player's action
+void tune_freq(Joystick_t* joy){
+    Direction dir = joy->direction;
+    if ((dir == N || dir == E) && (player_frequency < 500)) {
+        player_frequency += 10;
+    }
+    if ((dir == S || dir == W) && (player_frequency > 100)) {
+        player_frequency -= 10;
+    }
 }
 
 // Draw the main 3x3 grid

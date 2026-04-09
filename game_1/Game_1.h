@@ -11,6 +11,11 @@ void handle_state_radio(Joystick_t* joy);
 // ISR Callback Handler
 void Game1_HandleButton3();
 
+// Headers for radio-drawing related elements
+void draw_radio(void);
+void tune_freq(Joystick_t* joy);
+void draw_life(int player_health);
+
 // Headers for grid-drawing related elements
 void draw_grid(void);
 void draw_grid_cursor(int player_coord);
