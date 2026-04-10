@@ -8,6 +8,7 @@
 void handle_state_grid(Joystick_t* joy);
 void handle_state_radio(Joystick_t* joy);
 void handle_state_submit(Joystick_t* joy);
+void handle_state_forfeit(Joystick_t* joy);
 
 // ISR Callback Handler
 void Game1_HandleButton3();
@@ -26,6 +27,9 @@ void draw_grid(void);
 void draw_grid_cursor(int player_coord);
 void movement(Joystick_t* joy);
 void draw_selected_coords();
+
+// Headers for Forfeit
+void draw_forfeit(void);
 
 /**
  * @brief Game 1 - Student can implement their own game here

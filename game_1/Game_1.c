@@ -45,9 +45,10 @@ static uint8_t btn2_last = 0; // Initial state for button press (used for deboun
 typedef enum {
     STATE_GRID,
     STATE_RADIO,
-    STATE_SUBMIT
+    STATE_SUBMIT,
+    STATE_FORFEIT
 } FSM_State_t;
-int STATE_COUNT = 3;
+int STATE_COUNT = 4;
 
 // State definition not related to the main interface
 typedef enum {
@@ -100,7 +101,17 @@ MenuState Game1_Run(void) {
                 case STATE_SUBMIT:
                     handle_state_submit(&joystick_data);
                     break;
-                
+
+                case STATE_FORFEIT:
+                    handle_state_forfeit(&joystick_data);
+                    // Check for exit
+                    if (current_input.btn2_pressed && !btn2_last){
+                            // Exit game
+                            return exit_state;
+                        }
+                    btn2_last = current_input.btn2_pressed;
+                    break;
+
                 default:
                     g_current_state = STATE_GRID;
                     break;
@@ -108,7 +119,7 @@ MenuState Game1_Run(void) {
             break;
 
             case STATE_CORRECT:
-                //Display Correct Screen
+                // Display Correct Screen
                 // Wait For Button Press To Continue
                 // back to main game loop
                 LCD_Fill_Buffer(1);
@@ -170,8 +181,9 @@ void handle_state_grid(Joystick_t* joy){
     btn2_last = current_input.btn2_pressed;
     // Draw Main Elements
     draw_submit();
-    draw_grid();
+    draw_forfeit();
     draw_radio();
+    draw_grid();
     // Add Player Cursors - only visible for this state
     draw_grid_cursor(player_coord);
     LCD_Refresh(&cfg0);
@@ -184,6 +196,7 @@ void handle_state_radio(Joystick_t* joy){
     LCD_Fill_Buffer(0);
     // Draw Main Elements
     draw_submit();
+    draw_forfeit();
     draw_radio();
     draw_grid();
     LCD_Refresh(&cfg0);
@@ -206,6 +219,18 @@ void handle_state_submit(Joystick_t* joy){
     btn2_last = current_input.btn2_pressed;
     // Draw Main Elements
     draw_submit();
+    draw_forfeit();
+    draw_radio();
+    draw_grid();
+    LCD_Refresh(&cfg0);
+}
+
+void handle_state_forfeit(Joystick_t* joy){
+    // Clear The Screen
+    LCD_Fill_Buffer(0);
+    // Draw Main Elements
+    draw_submit();
+    draw_forfeit();
     draw_radio();
     draw_grid();
     LCD_Refresh(&cfg0);
@@ -231,6 +256,16 @@ void draw_submit(){
         LCD_printString(">SUBMIT", 145, 120, 1, 2);
     }
 }
+
+void draw_forfeit(){
+    if (g_current_state != STATE_FORFEIT){ // GRAY, NOT SUBMITTING
+        LCD_Draw_Rect(140,160, 90,40, 13,1);
+        LCD_printString("FORFEIT", 145, 170, 1, 2);
+    } else { // RED, ACTIVE
+        LCD_Draw_Rect(140,160, 90,40, 2,1);
+        LCD_printString(">>DEATH", 145, 170, 1, 2);
+    }
+}
 // Draw the main radio
 void draw_radio(){
     // Draw main background and decide whether movement arrow will appear
@@ -245,6 +280,8 @@ void draw_radio(){
     char buffer[20];
     snprintf(buffer, sizeof(buffer), "%d", player_frequency);
     LCD_printString(buffer, 90, 30, 0, 3);
+    // DRAW HEALTH BAR
+    draw_life(player_health);
 }
 
 // Tune the frequency according to player's action
@@ -280,6 +317,19 @@ void draw_grid() {
         }
     }
     draw_selected_coords();
+}
+
+// Draw The Health Bar!
+void draw_life(int player_health) {
+    if (player_health >= 3){
+        LCD_Draw_Rect(210,45, 10,40, 0,0);
+    }
+    if (player_health >= 2){
+        LCD_Draw_Rect(195,55, 10,30, 0,0);
+    }
+    if (player_health >= 1){
+        LCD_Draw_Rect(180,65, 10,20, 0,0);
+    }
 }
 
 void draw_grid_cursor(int player_coord) {
