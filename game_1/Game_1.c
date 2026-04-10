@@ -38,9 +38,10 @@ int player_coord = 1;  // starts top-left
 int player_frequency = 250; // (Ranges from 100-500)
 int player_health = 3; // starts with 3 attempts remaining
 int coord_state[9] = {0}; // Clean unpressed grid
+int true_coord[9] = {0}; // Clean solution grid
 static uint8_t btn2_last = 0; // Initial state for button press (used for debouncing later)
 
- // State definition for enum type, will be used in FSM cases
+ // State definition will be used during the main game
 typedef enum {
     STATE_GRID,
     STATE_RADIO,
@@ -48,8 +49,20 @@ typedef enum {
 } FSM_State_t;
 int STATE_COUNT = 3;
 
-// Game state - customize for your game
+// State definition not related to the main interface
+typedef enum {
+    STATE_START,
+    STATE_PLAYING,
+    STATE_CHECKING,
+    STATE_CORRECT,
+    STATE_WRONG,
+    STATE_END
+} EXTRA_State_t;
+
+// Game state initialization
 volatile FSM_State_t g_current_state = STATE_GRID;
+volatile EXTRA_State_t extra_state = STATE_PLAYING;
+
 
 // Frame rate for this game (in milliseconds)
 #define GAME1_FRAME_TIME_MS 30  // ~33 FPS
@@ -64,8 +77,8 @@ MenuState Game1_Run(void) {
     
     MenuState exit_state = MENU_STATE_HOME;  // Default: return to menu
     
-    // Game's own loop - runs until exit condition
-    while (1) {
+    // Game Main Loop While Playing
+    while (1){
         uint32_t frame_start = HAL_GetTick();
         
         // Read input and then joystick
@@ -73,17 +86,63 @@ MenuState Game1_Run(void) {
         Joystick_Read(&joystick_cfg, &joystick_data);
 
         // MAIN FSM LOOP
-        switch (g_current_state) {
-            case STATE_GRID:
-                handle_state_grid(&joystick_data);
+        switch(extra_state){
+            case STATE_PLAYING:
+                switch (g_current_state){
+                case STATE_GRID:
+                    handle_state_grid(&joystick_data);
+                    break;
+
+                case STATE_RADIO:
+                    handle_state_radio(&joystick_data);
+                    break;
+
+                case STATE_SUBMIT:
+                    handle_state_submit(&joystick_data);
+                    break;
+                
+                default:
+                    g_current_state = STATE_GRID;
+                    break;
+            }
+            break;
+
+            case STATE_CORRECT:
+                //Display Correct Screen
+                // Wait For Button Press To Continue
+                // back to main game loop
+                LCD_Fill_Buffer(1);
+                LCD_Refresh(&cfg0);
+                HAL_Delay(1000);
+                extra_state = STATE_PLAYING;
                 break;
 
-            case STATE_RADIO:
-                handle_state_radio(&joystick_data);
+            case STATE_WRONG:
+                // Display Wrong Screen
+                // Wait For Button Press To Continue
+                // deduct health
+                player_health -= 1;
+                if (player_health < 1){
+                    extra_state = STATE_END; //  Health is 0, switch to end screen
+                    break; // Exit early to avoid the state changing to playing
+                }
+                LCD_Fill_Buffer(2);
+                LCD_Refresh(&cfg0);
+                HAL_Delay(1000);
+                // back to main game loop
+                extra_state = STATE_PLAYING;
                 break;
-            
+
+            case STATE_END:
+                LCD_Fill_Buffer(0);
+                LCD_Refresh(&cfg0);
+                HAL_Delay(1000);
+                // Wait for button press to restart
+                extra_state = STATE_PLAYING;
+                break;
+
             default:
-                g_current_state = STATE_GRID;
+                extra_state = STATE_PLAYING;
                 break;
         }
         // Frame timing - wait for remainder of frame time
@@ -110,6 +169,7 @@ void handle_state_grid(Joystick_t* joy){
         }
     btn2_last = current_input.btn2_pressed;
     // Draw Main Elements
+    draw_submit();
     draw_grid();
     draw_radio();
     // Add Player Cursors - only visible for this state
@@ -123,11 +183,54 @@ void handle_state_radio(Joystick_t* joy){
     // Clear The Screen
     LCD_Fill_Buffer(0);
     // Draw Main Elements
+    draw_submit();
     draw_radio();
     draw_grid();
     LCD_Refresh(&cfg0);
 }
 
+// Handler for STATE SUBMIT
+void handle_state_submit(Joystick_t* joy){
+    // Clear The Screen
+    LCD_Fill_Buffer(0);
+    // Debouncing Mechanism
+    if (current_input.btn2_pressed && !btn2_last){
+            // Called submission and check - change state accordingly
+            int match = check_coord();
+            if (match){
+                extra_state = STATE_CORRECT;
+            } else {
+                extra_state = STATE_WRONG;
+            }
+        }
+    btn2_last = current_input.btn2_pressed;
+    // Draw Main Elements
+    draw_submit();
+    draw_radio();
+    draw_grid();
+    LCD_Refresh(&cfg0);
+}
+
+int check_coord(){
+    int match = 1;
+    for (int i = 0; i < 9; i++) {
+        if (true_coord[i] != coord_state[i]){
+            match = 0;  // Different, set flag to False
+            break;  // Early exit
+        }
+    }
+    return match;
+}
+
+void draw_submit(){
+    if (g_current_state != STATE_SUBMIT){ // GRAY, NOT SUBMITTING
+        LCD_Draw_Rect(140,110, 90,40, 13,1);
+        LCD_printString("SUBMIT", 150, 120, 1, 2);
+    } else { // RED, ACTIVE
+        LCD_Draw_Rect(140,110, 90,40, 2,1);
+        LCD_printString(">SUBMIT", 145, 120, 1, 2);
+    }
+}
 // Draw the main radio
 void draw_radio(){
     // Draw main background and decide whether movement arrow will appear
