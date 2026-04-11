@@ -19,9 +19,9 @@ extern Joystick_t joystick_data;     // Current joystick readings
  * This is a placeholder with a bouncing animation that changes LED brightness.
  * Replace this with your actual game logic!
  */
-
+// Sprites
  // Upside Down Cursor
- const uint8_t Cursor[10][10] = {
+const uint8_t Cursor[10][10] = {
     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
     {255, 0, 0, 0, 0, 0, 0, 0, 0, 255},
     {255, 255, 0, 0, 0, 0, 0, 0, 255, 255},
@@ -36,16 +36,30 @@ extern Joystick_t joystick_data;     // Current joystick readings
 
 // Logo
 const uint8_t logo[10][10] = {
-{0,0,0,255,0,0,0,0,0,0},
-{0,0,0,255,0,0,0,0,0,0},
-{0,0,0,255,0,0,0,0,0,0},
-{0,0,0,255,255,255,255,0,0,0},
-{0,0,0,255,255,255,255,0,0,0},
-{0,0,0,255,255,255,255,0,0,0},
-{0,0,0,255,255,255,255,0,0,0},
-{0,0,0,0,0,0,255,0,0,0},
-{0,0,0,0,0,0,255,0,0,0},
-{0,0,0,0,0,0,255,0,0,0}
+    {0,0,0,255,0,0,0,0,0,0},
+    {0,0,0,255,0,0,0,0,0,0},
+    {0,0,0,255,0,0,0,0,0,0},
+    {0,0,0,255,255,255,255,0,0,0},
+    {0,0,0,255,255,255,255,0,0,0},
+    {0,0,0,255,255,255,255,0,0,0},
+    {0,0,0,255,255,255,255,0,0,0},
+    {0,0,0,0,0,0,255,0,0,0},
+    {0,0,0,0,0,0,255,0,0,0},
+    {0,0,0,0,0,0,255,0,0,0}
+};
+
+// Morse Definition
+const char *morse_digits[10] = {
+    "-----",
+    ".----",
+    "..---",
+    "...--",
+    "....-",
+    ".....",
+    "-....",
+    "--...",
+    "---..",
+    "----."
 };
 
  // State definition will be used during the main game
@@ -67,15 +81,22 @@ typedef enum {
     STATE_END
 } EXTRA_State_t;
 
-    int player_coord = 1;  // starts top-left
-    int player_frequency = 250; // (Ranges from 100-500)
-    int player_health = 3; // starts with 3 attempts remaining
-    int coord_state[9] = {0}; // Clean unpressed grid
-    int true_coord[9] = {0}; // Clean solution grid
-    static uint8_t btn2_last = 0; // Initial state for button press (used for debouncing later)
-    // Game state initialization
-    volatile FSM_State_t g_current_state = STATE_GRID;
-    volatile EXTRA_State_t extra_state = STATE_START;
+morse_player morse_emitter;
+
+int player_coord = 1;  // starts top-left
+int player_frequency = 250; // (Ranges from 100-500)
+int player_health = 3; // starts with 3 attempts remaining
+
+int coord_state[9] = {0}; // Clean unpressed grid
+int true_coord[9] = {0}; // Clean solution grid
+
+int loudness = 100; // Initial Loudness of the transmission
+
+static uint8_t btn2_last = 0; // Initial state for button press (used for debouncing later)
+
+// Game state initialization
+volatile FSM_State_t g_current_state = STATE_GRID;
+volatile EXTRA_State_t extra_state = STATE_START;
 
 // reinitialize
 void reset(){
@@ -99,14 +120,14 @@ void reset(){
 
 MenuState Game1_Run(void) {
     // Initialize game state
-
-    // Play a brief startup sound
-    buzzer_tone(&buzzer_cfg, 1000, 30);  // 1kHz at 30% volume
-    HAL_Delay(50);  // Brief beep duration
-    buzzer_off(&buzzer_cfg);  // Stop the buzzer
     
     MenuState exit_state = MENU_STATE_HOME;  // Default: return to menu
     
+    // EXAMPLE CODE FOR TESTING ONLY
+    int coords[] = {1, 2, 3};
+    morse_init(&morse_emitter, coords, 3, HAL_GetTick());
+    // EXAMPLE CODE ENDS HERE
+
     // Game Main Loop While Playing
     while (1){
         uint32_t frame_start = HAL_GetTick();
@@ -118,6 +139,7 @@ MenuState Game1_Run(void) {
         // MAIN FSM LOOP
         switch(extra_state){
             case STATE_START:
+                transmit_morse(&morse_emitter, frame_start);
                 handle_start_screen();
                 break;
             
@@ -187,7 +209,8 @@ MenuState Game1_Run(void) {
                 LCD_Refresh(&cfg0);
                 HAL_Delay(1000);
                 // Wait for button press to restart
-                extra_state = STATE_PLAYING;
+                extra_state = STATE_START;
+                reset();
                 break;
 
             default:
@@ -523,6 +546,66 @@ void movement(Joystick_t* joy) {
     }
 }
 
+void morse_init(morse_player *morse_emitter, const int *coords, int length, uint32_t now)
+{
+    morse_emitter->coords = coords;
+    morse_emitter->length = length;
+    morse_emitter->digit_index = 0;
+    morse_emitter->symbol_index = 0;
+    morse_emitter->phase = 0;
+    morse_emitter->next_time = now;
+    morse_emitter->active = 1;
+}
+
+void transmit_morse(morse_player *morse_emitter, uint32_t now)
+{
+    if (!morse_emitter->active) return;
+    if (now < morse_emitter->next_time) return;
+
+    int digit = morse_emitter->coords[morse_emitter->digit_index];
+    const char *code = morse_digits[digit];
+
+    char symbol = code[morse_emitter->symbol_index];
+
+    // End of full transmission
+    if (digit == 0 || morse_emitter->digit_index >= morse_emitter->length) {
+        buzzer_off(&buzzer_cfg);
+        morse_emitter->active = 0;
+        return;
+    }
+
+    // PHASE: play symbol
+    if (morse_emitter->phase == 0) {
+        buzzer_note(&buzzer_cfg, NOTE_C5, loudness);
+
+        if (symbol == '.') {
+            morse_emitter->next_time = now + DOT_TIME;
+        } else {
+            morse_emitter->next_time = now + DASH_TIME;
+        }
+
+        morse_emitter->phase = 1;
+        return;
+    }
+
+    // PHASE: stop symbol + advance
+    if (morse_emitter->phase == 1) {
+        buzzer_off(&buzzer_cfg);
+
+        morse_emitter->symbol_index++;
+
+        morse_emitter->next_time = now + SYMBOL_GAP;
+        morse_emitter->phase = 0;
+
+        // end of digit
+        if (code[morse_emitter->symbol_index] == '\0') {
+            morse_emitter->digit_index++;
+            morse_emitter->symbol_index = 0;
+            morse_emitter->next_time = now + DIGIT_GAP;
+        }
+        return;
+    }
+}
 // ISR Handler for button 3, the main implementation is in InputHandler.C
 void Game1_HandleButton3(){
     // When In Game:
