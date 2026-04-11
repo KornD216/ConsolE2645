@@ -34,12 +34,19 @@ extern Joystick_t joystick_data;     // Current joystick readings
     {255, 255, 255, 255, 255, 255, 255, 255, 255, 255}
 };
 
-int player_coord = 1;  // starts top-left
-int player_frequency = 250; // (Ranges from 100-500)
-int player_health = 3; // starts with 3 attempts remaining
-int coord_state[9] = {0}; // Clean unpressed grid
-int true_coord[9] = {0}; // Clean solution grid
-static uint8_t btn2_last = 0; // Initial state for button press (used for debouncing later)
+// Logo
+const uint8_t logo[10][10] = {
+{0,0,0,255,0,0,0,0,0,0},
+{0,0,0,255,0,0,0,0,0,0},
+{0,0,0,255,0,0,0,0,0,0},
+{0,0,0,255,255,255,255,0,0,0},
+{0,0,0,255,255,255,255,0,0,0},
+{0,0,0,255,255,255,255,0,0,0},
+{0,0,0,255,255,255,255,0,0,0},
+{0,0,0,0,0,0,255,0,0,0},
+{0,0,0,0,0,0,255,0,0,0},
+{0,0,0,0,0,0,255,0,0,0}
+};
 
  // State definition will be used during the main game
 typedef enum {
@@ -54,23 +61,45 @@ int STATE_COUNT = 4;
 typedef enum {
     STATE_START,
     STATE_PLAYING,
-    STATE_CHECKING,
+    STATE_STORY,
     STATE_CORRECT,
     STATE_WRONG,
     STATE_END
 } EXTRA_State_t;
 
-// Game state initialization
-volatile FSM_State_t g_current_state = STATE_GRID;
-volatile EXTRA_State_t extra_state = STATE_PLAYING;
+    int player_coord = 1;  // starts top-left
+    int player_frequency = 250; // (Ranges from 100-500)
+    int player_health = 3; // starts with 3 attempts remaining
+    int coord_state[9] = {0}; // Clean unpressed grid
+    int true_coord[9] = {0}; // Clean solution grid
+    static uint8_t btn2_last = 0; // Initial state for button press (used for debouncing later)
+    // Game state initialization
+    volatile FSM_State_t g_current_state = STATE_GRID;
+    volatile EXTRA_State_t extra_state = STATE_START;
 
+// reinitialize
+void reset(){
+    player_coord = 1;
+    player_frequency = 250;
+    player_health = 3;
+    // Reset the grid
+    for (int i = 0; i < 9; i++){
+        coord_state[i] = 0;
+    }
+    for (int i = 0; i < 9; i++){
+        true_coord[i] = 0;
+    }  
+    btn2_last = 0;
+    g_current_state = STATE_GRID;
+    extra_state = STATE_START;
+}
 
 // Frame rate for this game (in milliseconds)
 #define GAME1_FRAME_TIME_MS 30  // ~33 FPS
 
 MenuState Game1_Run(void) {
     // Initialize game state
-    
+
     // Play a brief startup sound
     buzzer_tone(&buzzer_cfg, 1000, 30);  // 1kHz at 30% volume
     HAL_Delay(50);  // Brief beep duration
@@ -88,6 +117,14 @@ MenuState Game1_Run(void) {
 
         // MAIN FSM LOOP
         switch(extra_state){
+            case STATE_START:
+                handle_start_screen();
+                break;
+            
+            case STATE_STORY:
+                handle_story_screen();
+                break;
+            
             case STATE_PLAYING:
                 switch (g_current_state){
                 case STATE_GRID:
@@ -106,7 +143,8 @@ MenuState Game1_Run(void) {
                     handle_state_forfeit(&joystick_data);
                     // Check for exit
                     if (current_input.btn2_pressed && !btn2_last){
-                            // Exit game
+                            // Reset everything and exit
+                            reset();
                             return exit_state;
                         }
                     btn2_last = current_input.btn2_pressed;
@@ -163,6 +201,108 @@ MenuState Game1_Run(void) {
         }
     }
     return exit_state;  // Tell main where to go next
+}
+
+// Start screen with monologue and glitch animation
+void handle_start_screen() {
+    LCD_Fill_Buffer(0);
+    LCD_Draw_Sprite_Colour_Scaled(40, 170, 10, 10, (uint8_t*)logo, 1, 3);
+    LCD_printString("STATION-L7", 80, 170, 1, 2);
+    LCD_printString(">STANDBY", 80, 185, 13, 2);
+    uint32_t time_now = HAL_GetTick();  // define current time
+    static uint32_t time_start = 0;  // set to 0 only once at the start and retain updated value later.
+    // Initialize only once when time_start = 0
+    if (time_start == 0) {
+        time_start = time_now;
+    }
+    // calculate time elapsed
+    uint32_t time_elapsed = time_now - time_start;
+    // Determine the timing cycle
+    uint32_t cycle_time = time_elapsed % 2500;
+    // Determine which render to use depending on the cycle timing
+    if (cycle_time < 1500) {
+        LCD_Draw_Rect(30,50, 180,40, 2,1);
+        LCD_printString("> START <", 40, 60, 1, 3);
+    } else if (cycle_time >= 1500 && cycle_time < 1650) {
+        LCD_Draw_Rect(30,50, 180,20, 1,1);
+        LCD_Draw_Rect(40,90, 180,20, 2,0);
+        LCD_printString("!ACHTUNG!", 14, 60, 2, 5);
+    } else if (cycle_time >= 1650 && cycle_time < 2300) {
+        LCD_Fill_Buffer(0);
+        LCD_Draw_Rect(30,50, 250,40, 1,1);
+        LCD_printString("> ANFANG <", 54, 60, 0, 3);
+        LCD_Draw_Sprite_Colour_Scaled(40, 170, 10, 10, (uint8_t*)logo, 2, 3);
+        LCD_printString("ICH WERDE WARTEN", 90, 150, 1, 2);
+        LCD_printString(">INACTIVE", 90, 200, 2, 3);
+    } else {
+        LCD_Draw_Rect(30,50, 180,20, 1,1);
+        LCD_Draw_Rect(40,90, 180,20, 2,0);
+        LCD_printString("STERBT!", 14, 60, 2, 5);
+    }
+    LCD_Refresh(&cfg0);
+}
+
+void handle_story_screen() {
+    // Debouncing mechanism
+    static int btn2_last = 0;
+    static int page = 0;
+    if (current_input.btn2_pressed && !btn2_last) {
+        // Button was just pressed, advance to next page
+        page++;
+    }
+    // Remember current button state for next call
+    btn2_last = current_input.btn2_pressed;
+    // Render Common Elements
+    LCD_Fill_Buffer(0);
+    LCD_Draw_Sprite_Colour_Scaled(110, 15, 10, 10, (uint8_t*)logo, 1, 1);
+    LCD_printString("<BTN2> NEXT", 50, 210, 13, 2);
+    // Render the current page
+    switch(page) {
+        case 0:
+            LCD_Fill_Buffer(0);
+            LCD_Draw_Sprite_Colour_Scaled(20, 120, 10, 10, (uint8_t*)logo, 1, 3);
+            LCD_printString("FOR STATION L7", 60, 120, 1, 2);
+            LCD_printString("YOUR ORDER", 60, 135, 13, 2);
+            LCD_printString("<BTN2> NEXT", 50, 210, 13, 2);
+            LCD_Refresh(&cfg0);
+            break;
+        case 1:
+            LCD_printString(">The war has entered its worst phase.", 5, 40, 1, 1);
+            LCD_printString("Not noise... but silence.", 10, 55, 1, 1);
+            LCD_printString("Not what we hear,", 10, 80, 1, 1);
+            LCD_printString("but what we dont.", 10, 95, 1, 1);
+            LCD_printString("The Eusan Nation are on the hunt.", 10, 120, 1, 1);
+            LCD_printString("Agents disappear overnight...", 10, 135, 1, 1);
+            LCD_printString("Signals go dark.", 10, 160, 1, 1);
+            LCD_printString("Just static...", 10, 175, 1, 1);
+            LCD_Refresh(&cfg0);
+            break;
+        case 2:
+            LCD_printString(">You operate radio for the Empire.", 5, 40, 1, 1);
+            LCD_printString("Lucky... not front-lined.", 10, 55, 1, 1);
+            LCD_printString("Your orders are simple:", 10, 80, 2, 1);
+            LCD_printString("Transmit safe-routes.", 10, 95, 2, 1);
+            LCD_printString("Guide the lost back home.", 10, 110, 2, 1);
+            LCD_printString("Every message must be precise.", 10, 135, 1, 1);
+            LCD_printString("Every frequency untraced.", 10, 150, 1, 1);
+            LCD_Refresh(&cfg0);
+            break;
+        case 3:
+            LCD_printString(">They are listening.", 5, 40, 1, 1);
+            LCD_printString("They are always listening...", 10, 55, 1, 1);
+            LCD_printString("3 mistakes will expose everything.", 10, 80, 2, 1);
+            LCD_printString("the agents... or you.", 10, 95, 1, 1);
+            LCD_printString("Stay focused.", 10, 120, 1, 1);
+            LCD_printString("Stay quiet.", 10, 135, 1, 1);
+            LCD_printString("Keep transmitting.", 10, 150, 1, 1);
+            LCD_printString("GLORY TO THE EMPIRE.", 10, 170, 2, 1);
+            LCD_Refresh(&cfg0);
+            break;
+        default:
+            page = 0;
+            extra_state =  STATE_PLAYING;
+            break;
+    }
 }
 
 // Handler for STATE GRID
@@ -385,8 +525,20 @@ void movement(Joystick_t* joy) {
 
 // ISR Handler for button 3, the main implementation is in InputHandler.C
 void Game1_HandleButton3(){
-      // STATE TRANSITION: Move to next state (wraps back to 0 after last state)
-      // The (FSM_State_t) cast is needed because arithmetic operations (+, %) 
-      // return an integer type, so we must explicitly cast back to enum type
-      g_current_state = (FSM_State_t)((g_current_state + 1) % STATE_COUNT);
+    // When In Game:
+    switch (extra_state){
+        case STATE_PLAYING:
+            // STATE TRANSITION: Move to next state (wraps back to 0 after last state)
+            // The (FSM_State_t) cast is needed because arithmetic operations (+, %) 
+            // return an integer type, so we must explicitly cast back to enum type
+            g_current_state = (FSM_State_t)((g_current_state + 1) % STATE_COUNT);
+            break;
+
+        case STATE_START:
+            extra_state = STATE_STORY;
+            break;
+
+        default:
+            break;
     }
+}

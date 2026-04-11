@@ -4,7 +4,11 @@
 
 #include "Menu.h"
 
+void reset(void);
+
 // State Handler
+void handle_start_screen(void);
+void handle_story_screen(void);
 void handle_state_grid(Joystick_t* joy);
 void handle_state_radio(Joystick_t* joy);
 void handle_state_submit(Joystick_t* joy);
