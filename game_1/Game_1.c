@@ -116,7 +116,7 @@ void reset(){
 }
 
 // Frame rate for this game (in milliseconds)
-#define GAME1_FRAME_TIME_MS 30  // ~33 FPS
+#define GAME1_FRAME_TIME_MS 10  // ~100 FPS
 
 MenuState Game1_Run(void) {
     // Initialize game state
@@ -139,7 +139,6 @@ MenuState Game1_Run(void) {
         // MAIN FSM LOOP
         switch(extra_state){
             case STATE_START:
-                transmit_morse(&morse_emitter, frame_start);
                 handle_start_screen();
                 break;
             
@@ -154,6 +153,7 @@ MenuState Game1_Run(void) {
                     break;
 
                 case STATE_RADIO:
+                    transmit_morse(&morse_emitter, HAL_GetTick());
                     handle_state_radio(&joystick_data);
                     break;
 
@@ -186,6 +186,8 @@ MenuState Game1_Run(void) {
                 LCD_Refresh(&cfg0);
                 HAL_Delay(1000);
                 extra_state = STATE_PLAYING;
+                LCD_Fill_Buffer(0);
+                LCD_Refresh(&cfg0);
                 break;
 
             case STATE_WRONG:
@@ -202,6 +204,8 @@ MenuState Game1_Run(void) {
                 HAL_Delay(1000);
                 // back to main game loop
                 extra_state = STATE_PLAYING;
+                LCD_Fill_Buffer(0);
+                LCD_Refresh(&cfg0);
                 break;
 
             case STATE_END:
@@ -322,18 +326,24 @@ void handle_story_screen() {
             LCD_Refresh(&cfg0);
             break;
         default:
+            LCD_Fill_Buffer(0);
             page = 0;
             extra_state =  STATE_PLAYING;
             break;
     }
 }
 
+void draw_main_elements(){
+    // Draw Main Elements
+    draw_submit();
+    draw_forfeit();
+    draw_radio();
+    draw_grid();
+}
 // Handler for STATE GRID
 void handle_state_grid(Joystick_t* joy){
     // Read and figure out the movement
     movement(&joystick_data);
-    // Clear The Screen
-    LCD_Fill_Buffer(0);
     // Debouncing Mechanism
     if (current_input.btn2_pressed && !btn2_last){
             // Convert coordinate to grid number
@@ -343,10 +353,7 @@ void handle_state_grid(Joystick_t* joy){
         }
     btn2_last = current_input.btn2_pressed;
     // Draw Main Elements
-    draw_submit();
-    draw_forfeit();
-    draw_radio();
-    draw_grid();
+    draw_main_elements();
     // Add Player Cursors - only visible for this state
     draw_grid_cursor(player_coord);
     LCD_Refresh(&cfg0);
@@ -355,20 +362,13 @@ void handle_state_grid(Joystick_t* joy){
 // Handler for STATE RADIO
 void handle_state_radio(Joystick_t* joy){
     tune_freq(&joystick_data);
-    // Clear The Screen
-    LCD_Fill_Buffer(0);
     // Draw Main Elements
-    draw_submit();
-    draw_forfeit();
-    draw_radio();
-    draw_grid();
+    draw_main_elements();
     LCD_Refresh(&cfg0);
 }
 
 // Handler for STATE SUBMIT
 void handle_state_submit(Joystick_t* joy){
-    // Clear The Screen
-    LCD_Fill_Buffer(0);
     // Debouncing Mechanism
     if (current_input.btn2_pressed && !btn2_last){
             // Called submission and check - change state accordingly
@@ -381,21 +381,13 @@ void handle_state_submit(Joystick_t* joy){
         }
     btn2_last = current_input.btn2_pressed;
     // Draw Main Elements
-    draw_submit();
-    draw_forfeit();
-    draw_radio();
-    draw_grid();
+    draw_main_elements();
     LCD_Refresh(&cfg0);
 }
 
 void handle_state_forfeit(Joystick_t* joy){
-    // Clear The Screen
-    LCD_Fill_Buffer(0);
     // Draw Main Elements
-    draw_submit();
-    draw_forfeit();
-    draw_radio();
-    draw_grid();
+    draw_main_elements();
     LCD_Refresh(&cfg0);
 }
 
@@ -560,52 +552,65 @@ void morse_init(morse_player *morse_emitter, const int *coords, int length, uint
 void transmit_morse(morse_player *morse_emitter, uint32_t now)
 {
     if (!morse_emitter->active) return;
-    if (now < morse_emitter->next_time) return;
+
+    if ((int32_t)(now - morse_emitter->next_time) < 0)
+        return;
 
     int digit = morse_emitter->coords[morse_emitter->digit_index];
-    const char *code = morse_digits[digit];
 
-    char symbol = code[morse_emitter->symbol_index];
-
-    // End of full transmission
-    if (digit == 0 || morse_emitter->digit_index >= morse_emitter->length) {
+    if (morse_emitter->digit_index >= morse_emitter->length || digit == 0)
+    {
         buzzer_off(&buzzer_cfg);
         morse_emitter->active = 0;
         return;
     }
 
-    // PHASE: play symbol
-    if (morse_emitter->phase == 0) {
-        buzzer_note(&buzzer_cfg, NOTE_C5, loudness);
+    const char *code = morse_digits[digit];
+    char symbol = code[morse_emitter->symbol_index];
 
-        if (symbol == '.') {
-            morse_emitter->next_time = now + DOT_TIME;
-        } else {
-            morse_emitter->next_time = now + DASH_TIME;
-        }
+    switch (morse_emitter->phase)
+    {
+        // =========================
+        // TURN ON TONE
+        // =========================
+        case 0:
+            buzzer_tone(&buzzer_cfg, NOTE_C5, loudness);
 
-        morse_emitter->phase = 1;
-        return;
-    }
+            // IMPORTANT: store exact duration for THIS symbol
+            if (symbol == '.')
+                morse_emitter->phase_duration = DOT_TIME;
+            else
+                morse_emitter->phase_duration = DASH_TIME;
 
-    // PHASE: stop symbol + advance
-    if (morse_emitter->phase == 1) {
-        buzzer_off(&buzzer_cfg);
+            morse_emitter->next_time = now + morse_emitter->phase_duration;
+            morse_emitter->phase = 1;
+            break;
 
-        morse_emitter->symbol_index++;
+        // =========================
+        // TURN OFF TONE
+        // =========================
+        case 1:
+            buzzer_off(&buzzer_cfg);
 
-        morse_emitter->next_time = now + SYMBOL_GAP;
-        morse_emitter->phase = 0;
+            morse_emitter->symbol_index++;
 
-        // end of digit
-        if (code[morse_emitter->symbol_index] == '\0') {
-            morse_emitter->digit_index++;
-            morse_emitter->symbol_index = 0;
-            morse_emitter->next_time = now + DIGIT_GAP;
-        }
-        return;
+            if (code[morse_emitter->symbol_index] == '\0')
+            {
+                morse_emitter->digit_index++;
+                morse_emitter->symbol_index = 0;
+
+                morse_emitter->next_time = now + DIGIT_GAP;
+            }
+            else
+            {
+                morse_emitter->next_time = now + SYMBOL_GAP;
+            }
+
+            morse_emitter->phase = 0;
+            break;
     }
 }
+
 // ISR Handler for button 3, the main implementation is in InputHandler.C
 void Game1_HandleButton3(){
     // When In Game:

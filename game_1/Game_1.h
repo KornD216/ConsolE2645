@@ -5,6 +5,7 @@
 #include "Menu.h"
 
 void reset(void);
+void draw_main_elements(void);
 
 // State Handler
 void handle_start_screen(void);
@@ -19,9 +20,9 @@ void Game1_HandleButton3();
 
 // Morse Related Elements
 // For Morse Transmission Mechanism
-#define DOT_TIME      50
+#define DOT_TIME      30
 #define DASH_TIME     (4 * DOT_TIME)
-#define SYMBOL_GAP    25
+#define SYMBOL_GAP    30
 #define DIGIT_GAP     (4 * DOT_TIME)
 
 // per-frame persistent state awareness
@@ -33,6 +34,7 @@ typedef struct {
     int symbol_index; // which morse symbol in digit string
 
     uint8_t phase;       // 0 = start symbol, 1 = playing symbol, 2 = gap
+    uint32_t phase_duration;
     uint32_t next_time;
 
     uint8_t active;
