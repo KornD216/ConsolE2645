@@ -6,6 +6,7 @@
 #include "Buzzer.h"
 #include "stm32l4xx_hal.h"
 #include <stdio.h>
+#include <math.h>
 
 extern ST7789V2_cfg_t cfg0;
 extern PWM_cfg_t pwm_cfg;      // LED PWM control
@@ -83,14 +84,19 @@ typedef enum {
 
 morse_player morse_emitter;
 
+// Initialization
+
+extern PWM_cfg_t pwm_cfg;      // LED PWM control
+
 int player_coord = 1;  // starts top-left
 int player_frequency = 250; // (Ranges from 100-500)
 int player_health = 3; // starts with 3 attempts remaining
 
 int coord_state[9] = {0}; // Clean unpressed grid
 int true_coord[9] = {0}; // Clean solution grid
+int true_frequency = 250; // Matches with initial player_frequency
 
-int loudness = 100; // Initial Loudness of the transmission
+int amplitude;
 
 static uint8_t btn2_last = 0; // Initial state for button press (used for debouncing later)
 
@@ -123,9 +129,11 @@ MenuState Game1_Run(void) {
     
     MenuState exit_state = MENU_STATE_HOME;  // Default: return to menu
     
+    PWM_SetFreq(&pwm_cfg, 1000);
+    PWM_SetDuty(&pwm_cfg, 0); // Turns LED OFF!
     // EXAMPLE CODE FOR TESTING ONLY
-    int coords[] = {1, 2, 3};
-    morse_init(&morse_emitter, coords, 3, HAL_GetTick());
+    int coords[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5};
+    morse_init(&morse_emitter, coords, 14, HAL_GetTick());
     // EXAMPLE CODE ENDS HERE
 
     // Game Main Loop While Playing
@@ -147,14 +155,17 @@ MenuState Game1_Run(void) {
                 break;
             
             case STATE_PLAYING:
+                if (morse_emitter.active == 0){
+                    buzzer_off(&buzzer_cfg);
+                }
                 switch (g_current_state){
                 case STATE_GRID:
                     handle_state_grid(&joystick_data);
                     break;
 
                 case STATE_RADIO:
-                    transmit_morse(&morse_emitter, HAL_GetTick());
                     handle_state_radio(&joystick_data);
+                    transmit_morse(&morse_emitter, HAL_GetTick());
                     break;
 
                 case STATE_SUBMIT:
@@ -228,6 +239,37 @@ MenuState Game1_Run(void) {
         }
     }
     return exit_state;  // Tell main where to go next
+}
+
+// Handle Amplitude Calculation
+void change_amplitude() {
+    int diff = player_frequency - true_frequency;
+    if (diff < 0) diff = -diff;
+    switch (diff){
+        case 0:
+            amplitude = 5;
+            PWM_SetFreq(&pwm_cfg, 1000);
+            break;
+        case 10:
+            amplitude = 4;
+            PWM_SetFreq(&pwm_cfg, 20);
+            break;
+        case 20:
+            amplitude = 3;
+            PWM_SetFreq(&pwm_cfg, 10);
+            break;
+        case 30:
+            amplitude = 2;
+            PWM_SetFreq(&pwm_cfg, 5);
+            break;
+        case 40:
+            amplitude = 1;
+            PWM_SetFreq(&pwm_cfg, 1);
+            break;
+        default:
+            amplitude = 0;
+            break;
+    }
 }
 
 // Start screen with monologue and glitch animation
@@ -362,6 +404,7 @@ void handle_state_grid(Joystick_t* joy){
 // Handler for STATE RADIO
 void handle_state_radio(Joystick_t* joy){
     tune_freq(&joystick_data);
+    change_amplitude();
     // Draw Main Elements
     draw_main_elements();
     LCD_Refresh(&cfg0);
@@ -551,6 +594,7 @@ void morse_init(morse_player *morse_emitter, const int *coords, int length, uint
 
 void transmit_morse(morse_player *morse_emitter, uint32_t now)
 {
+    buzzer_note(&buzzer_cfg, (0 + amplitude * 20), amplitude);
     if (!morse_emitter->active) return;
 
     if ((int32_t)(now - morse_emitter->next_time) < 0)
@@ -574,7 +618,7 @@ void transmit_morse(morse_player *morse_emitter, uint32_t now)
         // TURN ON TONE
         // =========================
         case 0:
-            buzzer_tone(&buzzer_cfg, NOTE_C5, loudness);
+            PWM_SetDuty(&pwm_cfg, amplitude);
 
             // IMPORTANT: store exact duration for THIS symbol
             if (symbol == '.')
@@ -590,7 +634,7 @@ void transmit_morse(morse_player *morse_emitter, uint32_t now)
         // TURN OFF TONE
         // =========================
         case 1:
-            buzzer_off(&buzzer_cfg);
+            PWM_SetDuty(&pwm_cfg, 0);
 
             morse_emitter->symbol_index++;
 

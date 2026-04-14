@@ -6,6 +6,7 @@
 #include "Buzzer.h"
 #include "stm32l4xx_hal.h"
 #include <stdio.h>
+#include <math.h>
 
 extern ST7789V2_cfg_t cfg0;
 extern PWM_cfg_t pwm_cfg;      // LED PWM control
@@ -89,8 +90,9 @@ int player_health = 3; // starts with 3 attempts remaining
 
 int coord_state[9] = {0}; // Clean unpressed grid
 int true_coord[9] = {0}; // Clean solution grid
+int true_frequency = 250; // Matches with initial player_frequency
 
-int loudness = 100; // Initial Loudness of the transmission
+int loudness = 50; // Initial Loudness of the transmission
 
 static uint8_t btn2_last = 0; // Initial state for button press (used for debouncing later)
 
@@ -153,8 +155,8 @@ MenuState Game1_Run(void) {
                     break;
 
                 case STATE_RADIO:
-                    transmit_morse(&morse_emitter, HAL_GetTick());
                     handle_state_radio(&joystick_data);
+                    transmit_morse(&morse_emitter, HAL_GetTick());
                     break;
 
                 case STATE_SUBMIT:
@@ -228,6 +230,19 @@ MenuState Game1_Run(void) {
         }
     }
     return exit_state;  // Tell main where to go next
+}
+
+// Handle Loudness Calculation
+void change_loudness() {
+    int diff = player_frequency - true_frequency;
+    if (diff < 0) diff = -diff;
+    if (diff >= 50) {
+        printf("loudness = %d\r\n", loudness);
+        loudness = 0;
+    } else {
+        printf("loudness = %d\r\n", loudness);
+        loudness = 100 - (diff * 2);
+    }
 }
 
 // Start screen with monologue and glitch animation
@@ -362,6 +377,7 @@ void handle_state_grid(Joystick_t* joy){
 // Handler for STATE RADIO
 void handle_state_radio(Joystick_t* joy){
     tune_freq(&joystick_data);
+    change_loudness();
     // Draw Main Elements
     draw_main_elements();
     LCD_Refresh(&cfg0);

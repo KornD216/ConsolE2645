@@ -20,10 +20,10 @@ void Game1_HandleButton3();
 
 // Morse Related Elements
 // For Morse Transmission Mechanism
-#define DOT_TIME      30
-#define DASH_TIME     (4 * DOT_TIME)
-#define SYMBOL_GAP    30
-#define DIGIT_GAP     (4 * DOT_TIME)
+#define DOT_TIME      50
+#define DASH_TIME     (6 * DOT_TIME)
+#define SYMBOL_GAP    300
+#define DIGIT_GAP     1000
 
 // per-frame persistent state awareness
 typedef struct {
@@ -51,6 +51,7 @@ int check_coord(void);
 void draw_radio(void);
 void tune_freq(Joystick_t* joy);
 void draw_life(int player_health);
+void change_loudness();
 
 // Headers for grid related elements
 void draw_grid(void);
