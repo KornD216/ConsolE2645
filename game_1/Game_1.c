@@ -89,6 +89,7 @@ morse_player morse_emitter;
 
 extern PWM_cfg_t pwm_cfg;      // LED PWM control
 
+static uint8_t radio_entered = 0;
 int player_coord = 1;  // starts top-left
 int player_frequency = 250; // (Ranges from 100-500)
 int player_health = 3; // starts with 3 attempts remaining
@@ -109,6 +110,7 @@ volatile EXTRA_State_t extra_state = STATE_START;
 
 // reinitialize
 void reset(){
+    radio_entered = 0;
     player_coord = 1;
     player_frequency = 250;
     player_health = 3;
@@ -163,13 +165,18 @@ MenuState Game1_Run(void) {
                     break;
 
                 case STATE_RADIO:
-                    if (morse_emitter.active == 0){
-                        buzzer_off(&buzzer_cfg);
-                    } else {
-                        transmit_morse(&morse_emitter, HAL_GetTick());
-                        randomize_frequency();
+                    if (!radio_entered)
+                    {
+                        radio_entered = 1;
+                        morse_emitter.active = 1;
+                        morse_emitter.phase = 0;
+                        morse_emitter.symbol_index = 0;
+                        morse_emitter.digit_index = 0;
+                        morse_emitter.next_time = HAL_GetTick() + 50;
                     }
+                    transmit_morse(&morse_emitter, HAL_GetTick());
                     handle_state_radio(&joystick_data);
+                    randomize_frequency();
                     break;
 
                 case STATE_SUBMIT:
