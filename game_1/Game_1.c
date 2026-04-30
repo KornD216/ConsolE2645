@@ -99,6 +99,8 @@ int true_frequency = 250; // Matches with initial player_frequency
 
 int amplitude;
 
+int coords[3];
+
 static uint8_t btn2_last = 0; // Initial state for button press (used for debouncing later)
 
 // Game state initialization
@@ -133,11 +135,7 @@ MenuState Game1_Run(void) {
     srand(HAL_GetTick()); //  New seed for RNG
     PWM_SetFreq(&pwm_cfg, 1000);
     PWM_SetDuty(&pwm_cfg, 0); // Turns LED OFF
-
-    // EXAMPLE CODE FOR TESTING ONLY
-    int coords[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5};
-    morse_init(&morse_emitter, coords, 14, HAL_GetTick());
-    // EXAMPLE CODE ENDS HERE
+    reset_randomize_morse();
 
     // Game Main Loop While Playing
     while (1){
@@ -158,26 +156,29 @@ MenuState Game1_Run(void) {
                 break;
             
             case STATE_PLAYING:
-                if (morse_emitter.active == 0){
-                    buzzer_off(&buzzer_cfg);
-                } else {
-                    transmit_morse(&morse_emitter, HAL_GetTick());
-                    randomize_frequency();
-                }
                 switch (g_current_state){
                 case STATE_GRID:
+                    buzzer_off(&buzzer_cfg);
                     handle_state_grid(&joystick_data);
                     break;
 
                 case STATE_RADIO:
+                    if (morse_emitter.active == 0){
+                        buzzer_off(&buzzer_cfg);
+                    } else {
+                        transmit_morse(&morse_emitter, HAL_GetTick());
+                        randomize_frequency();
+                    }
                     handle_state_radio(&joystick_data);
                     break;
 
                 case STATE_SUBMIT:
+                    buzzer_off(&buzzer_cfg);
                     handle_state_submit(&joystick_data);
                     break;
 
                 case STATE_FORFEIT:
+                    buzzer_off(&buzzer_cfg);
                     handle_state_forfeit(&joystick_data);
                     // Check for exit
                     if (current_input.btn2_pressed && !btn2_last){
@@ -195,6 +196,9 @@ MenuState Game1_Run(void) {
             break;
 
             case STATE_CORRECT:
+                buzzer_off(&buzzer_cfg);
+                // Create new transmission
+                reset_randomize_morse();
                 // Display Correct Screen
                 // Wait For Button Press To Continue
                 // back to main game loop
@@ -207,6 +211,7 @@ MenuState Game1_Run(void) {
                 break;
 
             case STATE_WRONG:
+                buzzer_off(&buzzer_cfg);
                 // Display Wrong Screen
                 // Wait For Button Press To Continue
                 // deduct health
@@ -215,6 +220,8 @@ MenuState Game1_Run(void) {
                     extra_state = STATE_END; //  Health is 0, switch to end screen
                     break; // Exit early to avoid the state changing to playing
                 }
+                // Create new transmission
+                reset_randomize_morse();
                 LCD_Fill_Buffer(2);
                 LCD_Refresh(&cfg0);
                 HAL_Delay(1000);
@@ -225,6 +232,7 @@ MenuState Game1_Run(void) {
                 break;
 
             case STATE_END:
+                buzzer_off(&buzzer_cfg);
                 LCD_Fill_Buffer(0);
                 LCD_Refresh(&cfg0);
                 HAL_Delay(1000);
@@ -335,7 +343,7 @@ void handle_story_screen() {
         case 0:
             LCD_Fill_Buffer(0);
             LCD_Draw_Sprite_Colour_Scaled(20, 120, 10, 10, (uint8_t*)logo, 1, 3);
-            LCD_printString("FOR STATION L7", 60, 120, 1, 2);
+            LCD_printString("FOR STATION-L7", 60, 120, 1, 2);
             LCD_printString("YOUR ORDER", 60, 135, 13, 2);
             LCD_printString("<BTN2> NEXT", 50, 210, 13, 2);
             LCD_Refresh(&cfg0);
@@ -353,7 +361,7 @@ void handle_story_screen() {
             break;
         case 2:
             LCD_printString(">You operate radio for the Empire.", 5, 40, 1, 1);
-            LCD_printString("Lucky... not front-lined.", 10, 55, 1, 1);
+            LCD_printString("Support the front-liners.", 10, 55, 1, 1);
             LCD_printString("Your orders are simple:", 10, 80, 2, 1);
             LCD_printString("Transmit safe-routes.", 10, 95, 2, 1);
             LCD_printString("Guide the lost back home.", 10, 110, 2, 1);
@@ -685,4 +693,40 @@ void Game1_HandleButton3(){
         default:
             break;
     }
+}
+
+void reset_randomize_morse(){
+    // stop all transmission
+    buzzer_off(&buzzer_cfg);
+
+    // reset morse transmiter
+    morse_emitter.active = 0;
+    morse_emitter.digit_index = 0;
+    morse_emitter.symbol_index = 0;
+    morse_emitter.phase = 0;
+    morse_emitter.next_time = 0;
+
+    // reset true_coords and player coord_state flag
+    for (int i = 0; i < 9; i++)
+    {
+        true_coord[i] = 0;
+        coord_state[i] = 0;
+    }
+
+    // randomize new coordinates
+    int used[10] = {0};  // used index array
+    for (int i = 0; i < 3; i++)
+    {
+        int value;
+        do {
+            value = (rand() % 9) + 1;
+        } while (used[value]);
+        coords[i] = value;
+        used[value] = 1;
+        // change true coord flag
+        true_coord[value - 1] = 1; 
+    }
+    // Solutions for all the noobies and cheaters :P
+    printf("Solution: %d %d %d\r\n", coords[0], coords[1], coords[2]);
+    morse_init(&morse_emitter, coords, 3, HAL_GetTick());
 }

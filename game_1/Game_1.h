@@ -45,6 +45,7 @@ void draw_submit(void);
 int check_coord(void);
 
 // Headers for radio related elements
+void reset_randomize_morse(void);
 void randomize_frequency(void);
 void draw_radio(void);
 void tune_freq(Joystick_t* joy);
