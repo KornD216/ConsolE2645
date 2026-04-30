@@ -7,6 +7,7 @@
 #include "stm32l4xx_hal.h"
 #include <stdio.h>
 #include <math.h>
+#include <stdlib.h>
 
 extern ST7789V2_cfg_t cfg0;
 extern PWM_cfg_t pwm_cfg;      // LED PWM control
@@ -129,8 +130,10 @@ MenuState Game1_Run(void) {
     
     MenuState exit_state = MENU_STATE_HOME;  // Default: return to menu
     
+    srand(HAL_GetTick()); //  New seed for RNG
     PWM_SetFreq(&pwm_cfg, 1000);
-    PWM_SetDuty(&pwm_cfg, 0); // Turns LED OFF!
+    PWM_SetDuty(&pwm_cfg, 0); // Turns LED OFF
+
     // EXAMPLE CODE FOR TESTING ONLY
     int coords[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5};
     morse_init(&morse_emitter, coords, 14, HAL_GetTick());
@@ -157,6 +160,9 @@ MenuState Game1_Run(void) {
             case STATE_PLAYING:
                 if (morse_emitter.active == 0){
                     buzzer_off(&buzzer_cfg);
+                } else {
+                    transmit_morse(&morse_emitter, HAL_GetTick());
+                    randomize_frequency();
                 }
                 switch (g_current_state){
                 case STATE_GRID:
@@ -165,7 +171,6 @@ MenuState Game1_Run(void) {
 
                 case STATE_RADIO:
                     handle_state_radio(&joystick_data);
-                    transmit_morse(&morse_emitter, HAL_GetTick());
                     break;
 
                 case STATE_SUBMIT:
@@ -375,6 +380,15 @@ void handle_story_screen() {
     }
 }
 
+void randomize_frequency(){
+    int r = rand() % 10;
+    if (r==0){
+        true_frequency += 10;
+    }
+    else if (r==1){
+        true_frequency  -= 10;
+    }
+}
 void draw_main_elements(){
     // Draw Main Elements
     draw_submit();
@@ -619,8 +633,6 @@ void transmit_morse(morse_player *morse_emitter, uint32_t now)
         // =========================
         case 0:
             PWM_SetDuty(&pwm_cfg, amplitude);
-
-            // IMPORTANT: store exact duration for THIS symbol
             if (symbol == '.')
                 morse_emitter->phase_duration = DOT_TIME;
             else

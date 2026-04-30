@@ -29,14 +29,11 @@ void Game1_HandleButton3();
 typedef struct {
     const int *coords;
     int length;
-
     int digit_index; // which number in the array is being played
     int symbol_index; // which morse symbol in digit string
-
-    uint8_t phase;       // 0 = start symbol, 1 = playing symbol, 2 = gap
+    uint8_t phase; // 0 = start, 1 = playing symbol, 2 = gap
     uint32_t phase_duration;
     uint32_t next_time;
-
     uint8_t active;
 } morse_player;
 
@@ -48,6 +45,7 @@ void draw_submit(void);
 int check_coord(void);
 
 // Headers for radio related elements
+void randomize_frequency(void);
 void draw_radio(void);
 void tune_freq(Joystick_t* joy);
 void draw_life(int player_health);
