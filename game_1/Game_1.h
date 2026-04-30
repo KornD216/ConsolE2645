@@ -15,6 +15,10 @@ void handle_state_radio(Joystick_t* joy);
 void handle_state_submit(Joystick_t* joy);
 void handle_state_forfeit(Joystick_t* joy);
 
+void handle_wrong_screen(void);
+void handle_correct_screen(void);
+void handle_end_screen(void);
+
 // ISR Callback Handler
 void Game1_HandleButton3();
 

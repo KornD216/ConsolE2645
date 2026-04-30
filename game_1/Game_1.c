@@ -102,6 +102,7 @@ int amplitude;
 
 int coords[3];
 
+int score = 0;
 static uint8_t btn2_last = 0; // Initial state for button press (used for debouncing later)
 
 // Game state initialization
@@ -124,6 +125,8 @@ void reset(){
     btn2_last = 0;
     g_current_state = STATE_GRID;
     extra_state = STATE_START;
+    score = 0;
+    true_frequency = 250;
 }
 
 // Frame rate for this game (in milliseconds)
@@ -204,14 +207,12 @@ MenuState Game1_Run(void) {
 
             case STATE_CORRECT:
                 buzzer_off(&buzzer_cfg);
+                score = score+1;
                 // Create new transmission
                 reset_randomize_morse();
                 // Display Correct Screen
-                // Wait For Button Press To Continue
+                handle_correct_screen();
                 // back to main game loop
-                LCD_Fill_Buffer(1);
-                LCD_Refresh(&cfg0);
-                HAL_Delay(1000);
                 extra_state = STATE_PLAYING;
                 LCD_Fill_Buffer(0);
                 LCD_Refresh(&cfg0);
@@ -219,7 +220,6 @@ MenuState Game1_Run(void) {
 
             case STATE_WRONG:
                 buzzer_off(&buzzer_cfg);
-                // Display Wrong Screen
                 // Wait For Button Press To Continue
                 // deduct health
                 player_health -= 1;
@@ -229,9 +229,8 @@ MenuState Game1_Run(void) {
                 }
                 // Create new transmission
                 reset_randomize_morse();
-                LCD_Fill_Buffer(2);
-                LCD_Refresh(&cfg0);
-                HAL_Delay(1000);
+                // Display Wrong Screen
+                handle_wrong_screen();
                 // back to main game loop
                 extra_state = STATE_PLAYING;
                 LCD_Fill_Buffer(0);
@@ -240,10 +239,7 @@ MenuState Game1_Run(void) {
 
             case STATE_END:
                 buzzer_off(&buzzer_cfg);
-                LCD_Fill_Buffer(0);
-                LCD_Refresh(&cfg0);
-                HAL_Delay(1000);
-                // Wait for button press to restart
+                handle_end_screen();
                 extra_state = STATE_START;
                 reset();
                 break;
@@ -292,7 +288,7 @@ void change_amplitude() {
     }
 }
 
-// Start screen with monologue and glitch animation
+// Start screen glitch animation
 void handle_start_screen() {
     LCD_Fill_Buffer(0);
     LCD_Draw_Sprite_Colour_Scaled(40, 170, 10, 10, (uint8_t*)logo, 1, 3);
@@ -396,7 +392,7 @@ void handle_story_screen() {
 }
 
 void randomize_frequency(){
-    int r = rand() % 10;
+    int r = rand() % 25;
     if (r==0){
         true_frequency += 10;
     }
@@ -702,9 +698,128 @@ void Game1_HandleButton3(){
     }
 }
 
+void handle_correct_screen(){
+    // Correct Screen
+    LCD_Fill_Buffer(0);
+    LCD_Draw_Sprite_Colour_Scaled(40, 170, 10, 10, (uint8_t*)logo, 1, 3);
+    LCD_printString("CODE STATUS", 80, 170, 1, 2);
+    LCD_printString(">VALIDATED", 80, 185, 13, 2);
+    LCD_Draw_Rect(30,50, 180,40, 1,1);
+    LCD_printString("CORRECT", 60, 60, 0, 3);
+    LCD_Refresh(&cfg0);
+    HAL_Delay(1000);
+    // Show Score
+    LCD_Fill_Buffer(0);
+    char buffer[20];
+    snprintf(buffer, sizeof(buffer), "%d", score);
+    LCD_printString(buffer, 110, 80, 1, 3);
+    LCD_printString("LIVES SAVED", 20,110, 1, 3);
+    LCD_Refresh(&cfg0);
+    HAL_Delay(1000);
+}
+
+void handle_wrong_screen(){
+    // Wrong Screen
+    LCD_Fill_Buffer(0);
+    LCD_Draw_Sprite_Colour_Scaled(40, 170, 10, 10, (uint8_t*)logo, 2, 3);
+    LCD_printString("CODE STATUS", 80, 170, 2, 2);
+    LCD_printString(">FAILURE", 80, 185, 13, 2);
+    LCD_Draw_Rect(30,50, 180,40, 2,1);
+    LCD_printString("INCORRECT", 40, 60, 0, 3);
+    LCD_Refresh(&cfg0);
+    HAL_Delay(1000);
+    // Show Score
+    LCD_Fill_Buffer(0);
+    LCD_printString("MISTAKE", 20,70, 2, 3);
+    LCD_printString("COSTS", 20,100, 2, 3);
+    LCD_printString("LIVES", 20,130, 2, 3);
+    LCD_Refresh(&cfg0);
+    HAL_Delay(1000);
+}
+
+void handle_end_screen(){
+    // 1
+    LCD_Fill_Buffer(2);
+    LCD_Draw_Rect(30,50, 180,20, 1,1);
+    LCD_Draw_Rect(40,90, 180,20, 13,0);
+    LCD_printString("STERBT!", 10, 170, 0, 4);
+    LCD_Refresh(&cfg0);
+    HAL_Delay(300);
+    // 2
+    LCD_Draw_Rect(50,70, 180,20, 1,1);
+    LCD_Draw_Rect(20,10, 180,20, 13,0);
+    LCD_printString("STERBT!", 80, 170, 0, 3);
+    LCD_Refresh(&cfg0);
+    HAL_Delay(200);
+    // 3
+    LCD_Fill_Buffer(0);
+    LCD_Draw_Rect(30,50, 180,20, 1,1);
+    LCD_Draw_Rect(40,90, 180,20, 13,0);
+    LCD_printString("STERBT!", 80, 170, 2, 2);
+    LCD_Refresh(&cfg0);
+    HAL_Delay(400);
+    // 4
+    LCD_Fill_Buffer(0);
+    LCD_printString("YOU", 20,70, 2, 3);
+    LCD_printString("FAILED", 20,100, 2, 3);
+    LCD_printString("US.", 20,130, 2, 3);
+    LCD_Refresh(&cfg0);
+    HAL_Delay(500);
+    // 5
+    LCD_Fill_Buffer(0);
+    LCD_printString("YOU", 20,70, 2, 3);
+    LCD_printString("FAILED", 20,100, 2, 3);
+    LCD_printString("US.", 20,130, 2, 3);
+    LCD_Refresh(&cfg0);
+    HAL_Delay(500);
+    // 6
+    LCD_Fill_Buffer(0);
+    LCD_printString("YOU", 20,70, 2, 3);
+    LCD_printString("FAILED", 20,100, 2, 3);
+    LCD_printString("US..", 20,130, 2, 3);
+    LCD_Refresh(&cfg0);
+    HAL_Delay(500);
+    LCD_Fill_Buffer(0);
+    LCD_printString("YOU", 20,70, 2, 3);
+    LCD_printString("FAILED", 20,100, 2, 3);
+    LCD_printString("US...", 20,130, 2, 3);
+    LCD_Refresh(&cfg0);
+    HAL_Delay(500);
+    // 7
+    LCD_Fill_Buffer(0);
+    LCD_printString("TERMINATING", 20,80, 1, 2);
+    LCD_printString("CONTRACT.", 20,120, 1, 2);
+    LCD_Refresh(&cfg0);
+    HAL_Delay(500);
+    // 8
+    LCD_Fill_Buffer(0);
+    LCD_printString("TERMINATING", 20,80, 1, 2);
+    LCD_printString("CONTRACT..", 20,120, 1, 2);
+    LCD_Refresh(&cfg0);
+    HAL_Delay(500);
+    // 9
+    LCD_Fill_Buffer(0);
+    LCD_printString("TERMINATING", 20,80, 1, 2);
+    LCD_printString("CONTRACT...", 20,120, 1, 2);
+    LCD_Refresh(&cfg0);
+    HAL_Delay(500);
+    // 10
+    LCD_Fill_Buffer(0);
+    LCD_Draw_Sprite_Colour_Scaled(40, 170, 10, 10, (uint8_t*)logo, 1, 3);
+    LCD_printString("REBOOT", 80, 170, 1, 2);
+    LCD_printString(">READY!", 80, 185, 13, 2);
+    LCD_printString("WELCOME", 60, 60, 1, 3);
+    LCD_printString("NEW RECRUIT!", 50, 90, 1, 2);
+    LCD_Refresh(&cfg0);
+    HAL_Delay(3000);
+}
 void reset_randomize_morse(){
     // stop all transmission
     buzzer_off(&buzzer_cfg);
+
+    // Reset frequnecy
+    true_frequency = 250;
+    player_frequency = 250;
 
     // reset morse transmiter
     morse_emitter.active = 0;
