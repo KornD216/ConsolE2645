@@ -11,8 +11,8 @@ extern Joystick_t joystick_data;     // Current joystick readings
 
 // Menu options
 static const char* menu_options[] = {
-    "Game 1",
-    "Game 2", 
+    "1: L7",
+    "2: Cat Mario", 
     "Game 3"
 };
 
@@ -29,7 +29,7 @@ static void render_home_menu(MenuSystem* menu) {
     LCD_Fill_Buffer(0);
     
     // Title
-    LCD_printString("MAIN MENU", 50, 10, 1, 3);
+    LCD_printString("ConsolE2645", 20, 10, 1, 3);
     
     // Menu options with selection highlight
     for (int i = 0; i < NUM_MENU_OPTIONS; i++) {
@@ -40,10 +40,10 @@ static void render_home_menu(MenuSystem* menu) {
             // Highlight selected option with inverted colors
             // Draw a rectangle around selected option
             // We'll use simple marker instead
-            LCD_printString(">", 40, y_pos, 1, text_size);  // Arrow pointing to selection
+            LCD_printString(">", 10, y_pos, 1, text_size);  // Arrow pointing to selection
         }
         
-        LCD_printString((char*)menu_options[i], 70, y_pos, 1, text_size);
+        LCD_printString((char*)menu_options[i], 30, y_pos, 1, text_size);
     }
     
     // Instructions

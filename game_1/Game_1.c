@@ -14,13 +14,7 @@ extern PWM_cfg_t pwm_cfg;      // LED PWM control
 extern Buzzer_cfg_t buzzer_cfg; // Buzzer control
 extern Joystick_cfg_t joystick_cfg;  // Joystick configuration
 extern Joystick_t joystick_data;     // Current joystick readings
-/**
- * @brief Game 1 Implementation - Student can modify
- * 
- * EXAMPLE: Shows how to use PWM LED for visual feedback
- * This is a placeholder with a bouncing animation that changes LED brightness.
- * Replace this with your actual game logic!
- */
+
 // Sprites
  // Upside Down Cursor
 const uint8_t Cursor[10][10] = {
