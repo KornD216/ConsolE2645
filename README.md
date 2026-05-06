@@ -1,10 +1,13 @@
 ConsolE2645 - STM32 based video game console with 3 demo games.
 
-## Controls
+## Games Available In The System Demo
+- **L7**: A Number-Station Operator Simulation: Morse Code and Radio Mechanics, Fully Animated Graphics!
+- **Cat Mario**: Awfully frustrating version of mario filled with traps that you'd never see coming!
+- **OVercooked**: Spend so much time cooking in this game that you'll forget that you're hungry IRL!
 
+## Menu Controls
 - **Joystick UP/DOWN**: Navigate menu
-- **BT2 Button**: Available for custom game use
-- **BT3 Button**: Select menu option or custom game use
+- **BT3 Button**: Select menu option
 
 ## Hardware Features
 
@@ -14,6 +17,3 @@ ConsolE2645 - STM32 based video game console with 3 demo games.
 - **PWM LED** for visual effects
 - **Buzzer** for sound effects
 - **Timers**: TIM6 (100Hz) and TIM7 (1Hz) available for game timing
-
-See driver folders (Joystick/, PWM/, Buzzer/) for API documentation.
-See [TIMER_USAGE_GUIDE.md](TIMER_USAGE_GUIDE.md) for timer examples.

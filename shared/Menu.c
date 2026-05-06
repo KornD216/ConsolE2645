@@ -13,7 +13,7 @@ extern Joystick_t joystick_data;     // Current joystick readings
 static const char* menu_options[] = {
     "1: L7",
     "2: Cat Mario", 
-    "Game 3"
+    "3: Overcooked"
 };
 
 
