@@ -1,111 +1,126 @@
-#include "Game_3.h"
 #include "InputHandler.h"
 #include "Menu.h"
 #include "LCD.h"
-#include "PWM.h"
 #include "Buzzer.h"
+#include "Joystick.h"
+#include "KitchenEngine.h"
+#include "ChefPlayer.h"
+#include "BuzzerSounds.h"
 #include "stm32l4xx_hal.h"
 #include <stdio.h>
 
-extern ST7789V2_cfg_t cfg0;
-extern PWM_cfg_t pwm_cfg;      // LED PWM control
-extern Buzzer_cfg_t buzzer_cfg; // Buzzer control
+extern ST7789V2_cfg_t  cfg0;
+extern Joystick_cfg_t  joystick_cfg;
+extern Joystick_t      joystick_data;
 
-/**
- * @brief Game 3 Implementation - Student can modify
- * 
- * EXAMPLE: Shows how to use both PWM LED and Buzzer together
- * This is a placeholder with a diagonal bouncing animation.
- * Replace this with your actual game logic!
- */
+extern uint32_t game_start_tick;
+extern uint8_t  game_over_flag;
+extern uint16_t kitchen_score;
 
-// Game state - customize for your game
-static uint32_t animation_counter = 0;
-static int16_t moving_x = 0;
-static int16_t moving_y = 0;
-static int8_t dx = 2;
-static int8_t dy = 2;
-
-// Frame rate for this game (in milliseconds) - fastest game
-#define GAME3_FRAME_TIME_MS 16  // ~60 FPS (faster than others!)
+#define FRAME_TIME_MS 33
+#define MOVE_DELAY_MS 150
 
 MenuState Game3_Run(void) {
-    // Initialize game state
-    animation_counter = 0;
-    moving_x = 50;
-    moving_y = 50;
-    dx = 2;
-    dy = 2;
-    
-    // Play a brief startup sound
-    buzzer_tone(&buzzer_cfg, 1500, 30);  // 1.5kHz at 30% volume
-    HAL_Delay(50);  // Brief beep duration
-    buzzer_off(&buzzer_cfg);  // Stop the buzzer
-    
-    MenuState exit_state = MENU_STATE_HOME;  // Default: return to menu
-    
-    // Game's own loop - runs until exit condition
-    while (1) {
-        uint32_t frame_start = HAL_GetTick();
-        
-        // Read input
+
+    LCD_Fill_Buffer(0);
+    LCD_printString("Just Cooked!", 30, 80, 6, 2);
+    LCD_printString("BT2: interact", 40, 120, 1, 2);
+    LCD_printString("Joystick: move", 30, 145, 1, 2);
+    LCD_Refresh(&cfg0);
+    HAL_Delay(2000);
+
+    KitchenEngine_Init(0);
+    Kitchen_InitStations();
+    Kitchen_InitPlates();
+    Kitchen_InitOrders();
+
+    ChefPlayer_t player;
+    ChefPlayer_Init(&player);
+
+    game_start_tick = HAL_GetTick();
+    game_over_flag  = 0;
+
+    LCD_Fill_Buffer(0);
+    Kitchen_DrawMap();
+    Kitchen_DrawFloorItems();
+    Kitchen_DrawPlates();
+    ChefPlayer_Draw(&player);
+    Kitchen_DrawHUD();
+    LCD_Refresh(&cfg0);
+
+    uint32_t last_tick      = HAL_GetTick();
+    uint32_t last_move_tick = 0;
+
+    while (!game_over_flag) {
+
+        uint32_t now = HAL_GetTick();
+
+        if ((now - last_tick) < FRAME_TIME_MS) {
+            HAL_Delay(1);
+            continue;
+        }
+        last_tick = now;
         Input_Read();
-        
-        // Check if button was pressed to return to menu
-        if (current_input.btn3_pressed) {
-            PWM_SetDuty(&pwm_cfg, 50);  // Reset LED
-            exit_state = MENU_STATE_HOME;
-            break;  // Exit game loop
+        Joystick_Read(&joystick_cfg, &joystick_data);
+        UserInput input = Joystick_GetInput(&joystick_data);
+
+        Buzzer_Update();
+
+        if (current_input.btn2_pressed) {
+            ChefPlayer_Interact(&player);
+            Kitchen_DrawFloorItems();
+            Kitchen_DrawPlates();
+            ChefPlayer_Draw(&player);
+            LCD_Refresh(&cfg0);
         }
-        
-        // UPDATE: Game logic
-        animation_counter++;
-        
-        // Simple animation: move object diagonally
-        moving_x += dx;
-        moving_y += dy;
-        if (moving_x >= 200 || moving_x <= 0) {
-            dx *= -1;
+
+        if ((now - last_move_tick) >= MOVE_DELAY_MS) {
+            uint8_t prev_x = player.grid_x;
+            uint8_t prev_y = player.grid_y;
+
+            ChefPlayer_Update(&player, input);
+            last_move_tick = now;
+
+            if (prev_x != player.grid_x || prev_y != player.grid_y) {
+                Kitchen_DrawTile(prev_x, prev_y);
+                Kitchen_DrawFloorItems();
+                Kitchen_DrawPlates();
+                ChefPlayer_Draw(&player);
+                LCD_Refresh(&cfg0);
+            }
         }
-        if (moving_y >= 200 || moving_y <= 0) {
-            dy *= -1;
-        }
-        
-        // Example: Vary LED brightness based on distance from origin
-        uint8_t brightness = 30 + ((moving_x + moving_y) * 40) / 400;
-        if (brightness > 100) brightness = 100;
-        PWM_SetDuty(&pwm_cfg, brightness);
-        
-        // RENDER: Draw to LCD
-        LCD_Fill_Buffer(0);
-        
-        // Title
-        LCD_printString("GAME 3", 60, 10, 1, 3);
-        
-        // Simple animated object (moving box, diagonal)
-        LCD_printString("[o]", 20 + moving_x, 50 + moving_y, 1, 3);
-        
-        // Display counter
-        char counter[32];
-        sprintf(counter, "Frame: %lu", animation_counter);
-        LCD_printString(counter, 50, 140, 1, 2);
-        
-        // Show frame rate
-        LCD_printString("Fast Demo", 20, 180, 1, 1);
-        LCD_printString("60 FPS", 20, 195, 1, 1);
-        
-        // Instructions
-        LCD_printString("Press BT3 to", 40, 220, 1, 1);
-        LCD_printString("Return to Menu", 40, 235, 1, 1);
-        
+        Kitchen_UpdateStations(&player);
+        Kitchen_UpdateOrders();
+
+        Kitchen_DrawProgressBars();
+        Kitchen_DrawHUD();
         LCD_Refresh(&cfg0);
-        
-        // Frame timing - wait for remainder of frame time
-        uint32_t frame_time = HAL_GetTick() - frame_start;
-        if (frame_time < GAME3_FRAME_TIME_MS) {
-            HAL_Delay(GAME3_FRAME_TIME_MS - frame_time);
-        }
     }
-    
-    return exit_state;  // Tell main where to go next
+
+    /* Game over screen */
+    LCD_Fill_Buffer(0);
+    LCD_printString("Game Over!", 60, 70, 1, 2);
+
+    char score_str[32];
+    sprintf(score_str, "Score:%d", kitchen_score);
+    LCD_printString(score_str, 60, 100, 1, 2);
+
+    char star_str[16];
+    if      (kitchen_score >= SCORE_3_STAR) sprintf(star_str, "* * *");
+    else if (kitchen_score >= SCORE_2_STAR) sprintf(star_str, "* *");
+    else if (kitchen_score >= SCORE_1_STAR) sprintf(star_str, "*");
+    else                                    sprintf(star_str, ":(");
+    LCD_printString(star_str, 80, 130, 6, 2);
+
+    LCD_printString("Press BT2", 60, 170, 1, 2);
+    LCD_printString("for menu", 70, 190, 1, 2);
+    LCD_Refresh(&cfg0);
+
+    while (1) {
+        Input_Read();
+        if (current_input.btn2_pressed) break;
+        HAL_Delay(30);
+    }
+
+    return MENU_STATE_HOME;
 }

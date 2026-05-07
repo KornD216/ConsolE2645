@@ -61,6 +61,11 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 
     ${CMAKE_SOURCE_DIR}/game_2/Level.c
     ${CMAKE_SOURCE_DIR}/game_2/Player.c
+
+    # Game 3 - Just Cooked (Overcooked clone)
+    ${CMAKE_SOURCE_DIR}/game_3/KitchenEngine/KitchenEngine.c
+    ${CMAKE_SOURCE_DIR}/game_3/Player/ChefPlayer.c
+    ${CMAKE_SOURCE_DIR}/game_3/BuzzerSounds/BuzzerSounds.c
 )
 
 # Add include paths
@@ -81,6 +86,12 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/game_1
     ${CMAKE_SOURCE_DIR}/game_2
     ${CMAKE_SOURCE_DIR}/game_3
+
+    # Game 3 sub-modules
+    ${CMAKE_SOURCE_DIR}/game_3/KitchenEngine
+    ${CMAKE_SOURCE_DIR}/game_3/Player
+    ${CMAKE_SOURCE_DIR}/game_3/Sprites
+    ${CMAKE_SOURCE_DIR}/game_3/BuzzerSounds
 )
 
 # Add project symbols (macros)
